@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-TYLP94k4jRtUPbuDbAGqWe872ydUma/ekVA+nUtkXDQ='; style-src 'sha256-UPlWp+Sht+iBHW/5xAOivrgXyAyy88JKw/11VybMnQc='; img-src data:; connect-src 'none'; font-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'; manifest-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-bo/tfoEhiZZiMsrXY5zkl95Dal53el3UbGwc7YIhrE8='; style-src 'sha256-kamBr9w/1yDGRRLRwRpGskX6CaPJrJo3PjA++2Jasps='; img-src data:; connect-src 'none'; font-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'; manifest-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -91,6 +91,9 @@ pre.out{white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);
 .hist .s{display:block;color:var(--sub);font-size:11px;font-family:var(--mono)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 96px);background:var(--ink);color:#fff;padding:8px 14px;border-radius:4px;font-size:14px;z-index:9}
 .mobile-hist{margin-top:28px}
+.backbar{display:flex;justify-content:flex-start;margin:0 0 8px}
+.btn.small{min-height:40px;font-size:14px;padding:0 12px}
+.beanpick{border:1px solid var(--ink);border-radius:4px;padding:10px 12px;margin:4px 0 8px}
 @media (min-width:960px){.mobile-hist{display:none}}
 </style>
 </head>
@@ -117,6 +120,11 @@ pre.out{white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);
         <div class="errors" id="setupErr" hidden></div>
 
         <h2>Bean / 豆</h2>
+        <div class="beanpick" id="beanPickWrap" hidden>
+          <label class="lbl" for="f_beanpick">登録済みの豆</label>
+          <select id="f_beanpick"></select>
+          <div class="hint">選ぶと、豆の情報と前回の抽出条件を入れます</div>
+        </div>
         <div class="field"><label class="req" for="f_name">豆名</label><input type="text" id="f_name" maxlength="60" autocomplete="off"></div>
         <div class="field"><label class="req" for="f_slug">豆の英字名</label><input type="text" id="f_slug" maxlength="40" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="kenya-nyeri"><div class="hint">英小文字・数字・ハイフンのみ。記録のファイル名に使います</div></div>
         <div class="row">
@@ -170,6 +178,8 @@ pre.out{white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);
 
       <!-- 02 BREW -->
       <section id="scr-brew" hidden>
+        <div class="backbar"><button class="btn small" id="b_backSetup" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>条件入力に戻る</button></div>
         <h1>注湯タイマー</h1>
         <div class="clock" id="clock">
           <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
@@ -204,7 +214,7 @@ pre.out{white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);
         <div class="field score"><span class="lbl req">後味(長さ)</span><div class="seg" data-seg="finish"></div></div>
         <h2>Overall / 総合(好ましさ)</h2>
         <div class="field score"><div class="seg" data-seg="overall"></div></div>
-        <div class="field"><label class="req" for="f_memo">一言メモ</label><input type="text" id="f_memo" maxlength="100" autocomplete="off"></div>
+        <div class="field"><label class="req" for="f_memo">一言メモ</label><input type="text" id="f_memo" maxlength="200" autocomplete="off"></div>
         <h2>By temperature / 温度帯</h2>
         <div class="field"><label for="f_hot">熱い</label><input type="text" id="f_hot" maxlength="60" autocomplete="off"></div>
         <div class="field"><label for="f_warm">温かい</label><input type="text" id="f_warm" maxlength="60" autocomplete="off"></div>
@@ -256,7 +266,7 @@ pre.out{white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);
   if (window.top !== window.self) { document.body.textContent = ''; return; }
 
   // ---------- storage ----------
-  var KEY = { draft: 'clab.v1.draft', settings: 'clab.v1.settings', history: 'clab.v1.history' };
+  var KEY = { draft: 'clab.v1.draft', settings: 'clab.v1.settings', history: 'clab.v1.history', beans: 'clab.v1.beans' };
   function load(k, fb) {
     try { var s = localStorage.getItem(k); if (s == null || s.length > 2000000) return fb; var v = JSON.parse(s); return (v == null) ? fb : v; }
     catch (e) { return fb; }
@@ -375,7 +385,7 @@ pre.out{white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);
     var ta = r.taste;
     if (!isPlain(ta)) e.push('taste'); else {
       ['acidity', 'sweetness', 'bitterness', 'body', 'finish', 'overall'].forEach(function (k) { if (!isInt(ta[k], 1, 5)) e.push('taste.' + k); });
-      if (!isStr(ta.memo, 100, true)) e.push('taste.memo');
+      if (!isStr(ta.memo, 200, true)) e.push('taste.memo');
       if (ta.by_temp !== undefined) {
         if (!isPlain(ta.by_temp)) e.push('taste.by_temp');
         else ['hot', 'warm', 'cool'].forEach(function (k) { if (ta.by_temp[k] !== undefined && !isStr(ta.by_temp[k], 60, false)) e.push('taste.by_temp.' + k); });
@@ -403,7 +413,7 @@ pre.out{white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);
   // restore draft (only known keys, typed)
   if (isPlain(draft)) {
     if (has({ setup: 1, brew: 1, taste: 1, done: 1 }, draft.screen)) S.screen = draft.screen;
-    if (isPlain(draft.form)) Object.keys(draft.form).forEach(function (k) { if (/^f_[a-z]+$/.test(k) && typeof draft.form[k] === 'string') S.form[k] = draft.form[k].slice(0, 100); });
+    if (isPlain(draft.form)) Object.keys(draft.form).forEach(function (k) { if (/^f_[a-z]+$/.test(k) && typeof draft.form[k] === 'string') S.form[k] = draft.form[k].slice(0, 200); });
     if (isPlain(draft.seg)) Object.keys(S.seg).forEach(function (k) { if (typeof draft.seg[k] === 'string' && draft.seg[k].length <= 20) S.seg[k] = draft.seg[k]; });
     var rr = draft.run;
     if (isPlain(rr) && (rr.startedAt === null || isNum(rr.startedAt, 0, 1e15)) && Array.isArray(rr.pours) && rr.pours.length <= 10) {
@@ -418,8 +428,43 @@ pre.out{white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);
     if (typeof draft.saved === 'string' && draft.saved.length <= 80) S.saved = draft.saved;
     if (S.screen === 'done' && !S.saved) S.screen = 'taste';
     if (S.screen === 'taste' && S.run.finalDrain === null) S.screen = S.run.startedAt ? 'brew' : 'setup';
-    if (S.screen === 'brew' && S.run.startedAt && Date.now() - S.run.startedAt > 900000 && S.run.finalDrain === null) { /* stale timer */ S.run = blankRun(); S.screen = 'setup'; }
+    if ((S.screen === 'brew' || S.screen === 'setup') && S.run.startedAt && Date.now() - S.run.startedAt > 900000 && S.run.finalDrain === null) { /* stale timer */ S.run = blankRun(); S.screen = 'setup'; }
   }
+  // ---------- beans (登録した豆のリスト) ----------
+  function validateBean(b) {
+    if (!isPlain(b)) return false;
+    var m = typeof b.bean_id === 'string' ? /^([a-z0-9-]{1,40})_(\d{4}-\d{2}-\d{2})$/.exec(b.bean_id) : null;
+    return !!m && SLUG_RE.test(m[1]) && m[2] === b.roast_date && isStr(b.name, 60, true) &&
+      has(E.storage, b.storage) && has(E.roast_level, b.roast_level) && has(E.process, b.process) &&
+      (b.origin === undefined || isStr(b.origin, 60, false)) && (b.altitude_m === undefined || isInt(b.altitude_m, 0, 3000)) &&
+      isNum(b.updated, 0, 1e15);
+  }
+  function pickBean(src, updated) {
+    var o = { bean_id: src.bean_id, name: src.name, roast_date: src.roast_date, storage: src.storage, roast_level: src.roast_level, process: src.process, updated: updated };
+    if (src.origin !== undefined) o.origin = src.origin;
+    if (src.altitude_m !== undefined) o.altitude_m = src.altitude_m;
+    return o;
+  }
+  var beans = load(KEY.beans, []);
+  beans = Array.isArray(beans) ? beans.filter(validateBean).slice(-100) : [];
+  history.forEach(function (r) {
+    var t = Date.parse(r.brewed_at) || 0;
+    var i = beans.findIndex(function (b) { return b.bean_id === r.bean.bean_id; });
+    if (i < 0) beans.push(pickBean(r.bean, t));
+  });
+  function upsertBean(b) {
+    if (!validateBean(b)) return;
+    var i = beans.findIndex(function (x) { return x.bean_id === b.bean_id; });
+    if (i >= 0) beans.splice(i, 1);
+    beans.push(b); beans = beans.slice(-100);
+    store(KEY.beans, beans);
+  }
+  function lastRecordOf(beanId) {
+    for (var i = history.length - 1; i >= 0; i--) if (history[i].bean.bean_id === beanId) return history[i];
+    return null;
+  }
+  function currentBeanId() { return $('f_slug').value.trim() + '_' + $('f_roast').value; }
+
   function persist() { store(KEY.draft, { screen: S.screen, form: S.form, seg: S.seg, run: S.run, saved: S.saved }); }
 
   // ---------- build controls ----------
@@ -449,7 +494,7 @@ pre.out{white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);
   FIELDS.forEach(function (id) {
     var el = $(id);
     if (typeof S.form[id] === 'string') el.value = S.form[id];
-    var h = function () { S.form[id] = el.value.slice(0, 100); persist(); if (id === 'f_roast') renderDays(); if (id === 'f_cvar') renderChange(); renderPanel(); };
+    var h = function () { S.form[id] = el.value.slice(0, 200); persist(); if (id === 'f_roast') renderDays(); if (id === 'f_cvar') renderChange(); renderPanel(); };
     el.addEventListener('input', h); el.addEventListener('change', h);
   });
   $('f_slug').addEventListener('blur', function () { var v = $('f_slug').value.toLowerCase().replace(/[\s_]+/g, '-'); $('f_slug').value = v; S.form.f_slug = v; persist(); });
@@ -462,6 +507,46 @@ pre.out{white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);
     $('cvals').hidden = (v === '' || v === 'first');
     $('cnoteWrap').hidden = (v !== 'other');
   }
+
+  function renderBeanPick() {
+    var sel = $('f_beanpick'); sel.textContent = '';
+    var o0 = document.createElement('option'); o0.value = ''; o0.textContent = '選択(新しい豆はそのまま入力)'; sel.appendChild(o0);
+    beans.slice().sort(function (a, b) { return b.updated - a.updated; }).forEach(function (b) {
+      var o = document.createElement('option'); o.value = b.bean_id;
+      o.textContent = b.name + '(焙煎 ' + b.roast_date.slice(5).replace('-', '/') + ')';
+      sel.appendChild(o);
+    });
+    $('beanPickWrap').hidden = beans.length === 0;
+  }
+  function setField(id, v) { var el = $(id); el.value = (v === undefined || v === null) ? '' : String(v); S.form[id] = el.value; }
+  function applyBean(beanId) {
+    var b = null; beans.forEach(function (x) { if (x.bean_id === beanId) b = x; });
+    if (!b) return;
+    setField('f_name', b.name); setField('f_slug', b.bean_id.slice(0, b.bean_id.length - 11)); setField('f_roast', b.roast_date);
+    S.seg.storage = b.storage; setField('f_level', b.roast_level); setField('f_process', b.process);
+    setField('f_origin', b.origin); setField('f_alt', b.altitude_m);
+    var r = lastRecordOf(beanId);
+    if (r) {
+      var c = r.conditions;
+      S.seg.dripper = c.dripper; setField('f_dose', c.dose_g); setField('f_grind', c.grind_clicks); setField('f_temp', c.water_temp_c);
+      setField('f_water', c.total_water_g); setField('f_wtype', c.water);
+      S.seg.agitation = c.agitation ? 'yes' : 'no'; S.seg.rinse = c.filter_rinse ? 'yes' : 'no';
+    }
+    setField('f_cvar', r ? '' : 'first'); setField('f_cfrom', ''); setField('f_cto', ''); setField('f_cnote', '');
+    paintSeg(); renderDays(); renderChange(); renderPanel(); persist();
+    toast(r ? '前回の条件を入れました' : '豆の情報を入れました');
+  }
+  $('f_beanpick').addEventListener('change', function () { var v = $('f_beanpick').value; if (v) applyBean(v); $('f_beanpick').value = ''; });
+  // 変えた項目を選んだら「前回」の値を自動で入れる
+  var CHANGE_KEY = { grind_clicks: 'grind_clicks', water_temp_c: 'water_temp_c', dose_g: 'dose_g', total_water_g: 'total_water_g', dripper: 'dripper', agitation: 'agitation' };
+  $('f_cvar').addEventListener('change', function () {
+    var v = $('f_cvar').value, r = lastRecordOf(currentBeanId());
+    if (r && has(CHANGE_KEY, v) && !$('f_cfrom').value.trim()) {
+      var pv = r.conditions[CHANGE_KEY[v]];
+      if (v === 'dripper') pv = DRIPPER_FULL[pv]; else if (v === 'agitation') pv = pv ? 'あり' : 'なし';
+      setField('f_cfrom', pv); persist();
+    }
+  });
 
   // ---------- setup validation ----------
   function checkSetup() {
@@ -595,7 +680,7 @@ pre.out{white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);
       taste: {
         acidity: Number(S.seg.acidity), sweetness: Number(S.seg.sweetness), bitterness: Number(S.seg.bitterness),
         body: Number(S.seg.body), finish: Number(S.seg.finish), overall: Number(S.seg.overall),
-        memo: clean($('f_memo').value, 100)
+        memo: clean($('f_memo').value, 200)
       }
     };
     if (any) rec.taste.by_temp = byTemp;
@@ -626,7 +711,7 @@ pre.out{white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);
     if (!isNum(numVal('f_bev'), 0, 1000)) e.push('抽出液の重さ(0〜1000g)を入力してください');
     if (!S.seg.bed) e.push('粉層の形を選んでください');
     [['acidity', '酸'], ['sweetness', '甘'], ['bitterness', '苦'], ['body', '質感'], ['finish', '後味'], ['overall', '総合']].forEach(function (x) { if (!S.seg[x[0]]) e.push(x[1] + 'を採点してください'); });
-    if (!clean($('f_memo').value, 100)) e.push('一言メモを入力してください');
+    if (!clean($('f_memo').value, 200)) e.push('一言メモを入力してください');
     return e;
   }
   function makeRecord() {
@@ -681,7 +766,7 @@ pre.out{white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);
         var s = document.createElement('span'); s.className = 's';
         s.textContent = r.conditions.dose_g + 'g / ' + r.conditions.grind_clicks + 'clk / ' + r.conditions.water_temp_c + '℃ / ' + mmss(r.timer.final_drain_s) + ' / 総合' + r.taste.overall;
         b.appendChild(s);
-        b.addEventListener('click', function () { if (S.screen === 'brew' || S.screen === 'taste') { toast('抽出・採点中は開けません'); return; } S.viewing = r.record_id; go('done'); });
+        b.addEventListener('click', function () { if (S.screen === 'brew' || S.screen === 'taste' || (S.run.startedAt && S.run.finalDrain === null)) { toast('抽出・採点中は開けません'); return; } S.viewing = r.record_id; go('done'); });
         li.appendChild(b); ul.appendChild(li);
       });
     });
@@ -728,7 +813,15 @@ pre.out{white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);
     $('dock-brew').insertBefore(fb, $('b_main'));
   })();
 
-  $('b_toBrew').addEventListener('click', function () { var e = checkSetup(); showErr('setupErr', e); if (!e.length) go('brew'); });
+  $('b_toBrew').addEventListener('click', function () {
+    var e = checkSetup(); showErr('setupErr', e); if (e.length) return;
+    var b = { bean_id: currentBeanId(), name: clean($('f_name').value, 60), roast_date: $('f_roast').value, storage: S.seg.storage, roast_level: $('f_level').value, process: $('f_process').value, updated: Date.now() };
+    var og = clean($('f_origin').value, 60); if (og) b.origin = og;
+    var al = numVal('f_alt'); if (al !== null) b.altitude_m = al;
+    upsertBean(b); renderBeanPick();
+    go('brew');
+  });
+  $('b_backSetup').addEventListener('click', function () { go('setup'); });
   $('b_main').addEventListener('click', mainAction);
   $('b_drain').addEventListener('click', drainAction);
   $('b_finish').addEventListener('click', finishBrew);
@@ -743,7 +836,7 @@ pre.out{white-space:pre-wrap;word-break:break-word;border:1px solid var(--line);
   $('b_new').addEventListener('click', function () { if (S.viewing && S.saved === null) { S.viewing = null; go('setup'); return; } newBrew(); });
   $('b_copy').addEventListener('click', copyOut);
 
-  paintSeg(); renderDays(); renderChange();
+  paintSeg(); renderDays(); renderChange(); renderBeanPick();
   go(S.screen);
 })();
 </script>
